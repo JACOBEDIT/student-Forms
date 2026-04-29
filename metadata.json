@@ -1,0 +1,6 @@
+{
+  "name": "Student Attendance & Leave Tracker",
+  "description": "Professional dashboard to check pending leave, on-duty (OD), and absent forms using registration numbers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
