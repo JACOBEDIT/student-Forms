@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
@@ -23,6 +23,18 @@ import {
   Trophy,
   Sparkles
 } from 'lucide-react';
+
+// Firebase Imports
+import { db } from './lib/firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  query, 
+  orderBy,
+  getDocs 
+} from 'firebase/firestore';
 
 // --- Data Types ---
 
@@ -207,19 +219,43 @@ export default function App() {
   const [authError, setAuthError] = useState(false);
 
   // Data State
-  const [records, setRecords] = useState<RecordEntry[]>(() => {
-    const saved = localStorage.getItem('attendance_records');
-    return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE_DATA;
-  });
+  const [records, setRecords] = useState<RecordEntry[]>(INITIAL_ATTENDANCE_DATA);
 
   // Student Search State
   const [regNo, setRegNo] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Save to LocalStorage on change
+  // Firebase Sync
   useEffect(() => {
-    localStorage.setItem('attendance_records', JSON.stringify(records));
-  }, [records]);
+    const q = query(collection(db, "attendance_records"), orderBy("id", "asc"));
+    
+    // Check if we need to seed
+    const checkAndSeed = async () => {
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        console.log("Seeding database...");
+        for (const record of INITIAL_ATTENDANCE_DATA) {
+          await setDoc(doc(db, "attendance_records", record.id), record);
+        }
+      }
+    };
+    checkAndSeed();
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedRecords = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as RecordEntry[];
+      
+      if (fetchedRecords.length > 0) {
+        // Sort by ID naturally (padding with leading zeros if necessary, or just rely on id field)
+        const sorted = [...fetchedRecords].sort((a, b) => parseInt(a.id) - parseInt(b.id));
+        setRecords(sorted);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const results = useMemo(() => {
     if (!searchTerm) return null;
@@ -248,12 +284,12 @@ export default function App() {
     }, { L: 0, OD: 0, AB: 0 });
   }, [results]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: FormEvent) => {
     e.preventDefault();
     setSearchTerm(regNo.trim());
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = (e: FormEvent) => {
     e.preventDefault();
     if (password === ADMIN_PASSKEY) {
       setIsAdminLoggedIn(true);
@@ -264,13 +300,20 @@ export default function App() {
     }
   };
 
-  const handleUpdateRecord = (id: string, field: 'leave' | 'od' | 'ab', value: string) => {
+  const handleUpdateRecord = async (id: string, field: 'leave' | 'od' | 'ab', value: string) => {
     // Treat "0 (All Present)" as empty list
     const cleanedValue = value.toLowerCase().includes('present') ? [] : value.split(',').map(s => s.trim()).filter(s => s !== '');
     
-    setRecords(prev => prev.map(rec => 
-      rec.id === id ? { ...rec, [field]: cleanedValue } : rec
-    ));
+    const recordToUpdate = records.find(r => r.id === id);
+    if (!recordToUpdate) return;
+
+    const updatedRecord = { ...recordToUpdate, [field]: cleanedValue };
+    
+    try {
+      await setDoc(doc(db, "attendance_records", id), updatedRecord);
+    } catch (error) {
+      console.error("Error updating record:", error);
+    }
   };
 
   return (
@@ -509,9 +552,13 @@ export default function App() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest border border-indigo-100 shadow-sm">
-                        System Active
-                      </div>
+                      <button 
+                        onClick={() => setIsAdminLoggedIn(false)}
+                        className="bg-white border-2 border-slate-100 text-slate-600 px-6 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm active:scale-95"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Log Out
+                      </button>
                     </div>
                   </header>
 

@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Validation helper
+    function isValidRecord(data) {
+      return data.keys().hasAll(['date', 'month', 'leave', 'od', 'ab']) &&
+             data.date is string && data.date.size() <= 20 &&
+             data.month is string && data.month.size() <= 20 &&
+             data.leave is list &&
+             data.od is list &&
+             data.ab is list;
+    }
+
+    match /attendance_records/{recordId} {
+      // Students need to read to check status
+      allow read: if true;
+      
+      // Writes are restricted. Ideally this would be request.auth != null,
+      // but the user implements a client-side passkey.
+      // For now, allowing writes but with strict schema validation.
+      allow write: if isValidRecord(request.resource.data);
+    }
+  }
+}

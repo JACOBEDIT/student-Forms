@@ -1,0 +1,24 @@
+{
+  "entities": {
+    "AttendanceRecord": {
+      "title": "Attendance Record",
+      "description": "Details about a specific day's leave, OD, and absent markings.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Date of the record (e.g. 16.12.25)" },
+        "month": { "type": "string", "description": "Month name" },
+        "leave": { "type": "array", "items": { "type": "string" }, "description": "List of student roll numbers on leave" },
+        "od": { "type": "array", "items": { "type": "string" }, "description": "List of student roll numbers on duty" },
+        "ab": { "type": "array", "items": { "type": "string" }, "description": "List of student roll numbers absent" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["date", "month", "leave", "od", "ab"]
+    }
+  },
+  "firestore": {
+    "attendance_records": {
+      "schema": "AttendanceRecord",
+      "description": "Collection of all student attendance records extracted from PDF and updated by admin."
+    }
+  }
+}
