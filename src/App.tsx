@@ -33,7 +33,10 @@ import {
   setDoc, 
   query, 
   orderBy,
-  getDocs 
+  getDocs,
+  limit,
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 
 // --- Data Types ---
@@ -47,85 +50,71 @@ interface RecordEntry {
   od: string[];
   ab: string[];
   month: string;
+  updatedAt?: string;
 }
 
 // --- Historical Data extracted from PDF ---
 
 const INITIAL_ATTENDANCE_DATA: RecordEntry[] = [
   // DECEMBER 2025
-  { id: '1', month: 'DECEMBER', date: '16.12.25', leave: ['57', '305'], od: ['2'], ab: [] },
+  { id: '1', month: 'DECEMBER', date: '16.12.25', leave: [], od: ['2'], ab: [] },
   { id: '2', month: 'DECEMBER', date: '17.12.25', leave: ['32'], od: ['2'], ab: [] },
   { id: '3', month: 'DECEMBER', date: '18.12.25', leave: ['32'], od: ['2'], ab: [] },
   { id: '4', month: 'DECEMBER', date: '19.12.25', leave: ['32'], od: ['2'], ab: [] },
   { id: '5', month: 'DECEMBER', date: '20.12.25', leave: ['32'], od: [], ab: [] },
-  { id: '6', month: 'DECEMBER', date: '24.12.25', leave: ['12', '57'], od: [], ab: [] },
-  { id: '7', month: 'DECEMBER', date: '26.12.25', leave: ['56', '302'], od: [], ab: [] },
-  { id: '8', month: 'DECEMBER', date: '29.12.25', leave: ['62'], od: [], ab: [] },
-  { id: '9', month: 'DECEMBER', date: '30.12.25', leave: ['62'], od: [], ab: [] },
-  { id: '10', month: 'DECEMBER', date: '31.12.25', leave: ['62'], od: [], ab: [] },
+  { id: '6', month: 'DECEMBER', date: '26.12.25', leave: ['302'], od: [], ab: [] },
 
   // JANUARY 2026
-  { id: '11', month: 'JANUARY', date: '07.01.26', leave: ['4', '6', '10', '29', '304', '307'], od: [], ab: [] },
-  { id: '12', month: 'JANUARY', date: '09.01.26', leave: ['25'], od: [], ab: [] },
-  { id: '13', month: 'JANUARY', date: '10.01.26', leave: ['25', '32'], od: [], ab: [] },
-  { id: '14', month: 'JANUARY', date: '12.01.26', leave: [], od: [], ab: ['42'] },
-  { id: '15', month: 'JANUARY', date: '13.01.26', leave: ['51', '43', '57'], od: [], ab: ['3', '4', '10', '18', '26', '32', '40', '44', '62', '304', '305'] },
-  { id: '16', month: 'JANUARY', date: '19.01.26', leave: [], od: [], ab: ['43', '51'] },
-  { id: '17', month: 'JANUARY', date: '21.01.26', leave: ['36'], od: [], ab: [] },
-  { id: '18', month: 'JANUARY', date: '22.01.26', leave: ['36'], od: [], ab: [] },
-  { id: '19', month: 'JANUARY', date: '24.01.26', leave: [], od: [], ab: ['32', '302'] },
-  { id: '20', month: 'JANUARY', date: '27.01.26', leave: [], od: [], ab: ['302', '27'] },
-  { id: '21', month: 'JANUARY', date: '28.01.26', leave: [], od: [], ab: ['25'] },
-  { id: '22', month: 'JANUARY', date: '29.01.26', leave: [], od: [], ab: ['36'] },
-  { id: '23', month: 'JANUARY', date: '30.01.26', leave: ['29'], od: [], ab: [] },
-  { id: '24', month: 'JANUARY', date: '31.01.26', leave: ['29'], od: ['5'], ab: ['10', '26'] },
+  { id: '7', month: 'JANUARY', date: '07.01.26', leave: ['4', '304'], od: [], ab: [] },
+  { id: '8', month: 'JANUARY', date: '09.01.26', leave: ['25'], od: [], ab: [] },
+  { id: '9', month: 'JANUARY', date: '10.01.26', leave: ['25', '32'], od: [], ab: [] },
+  { id: '10', month: 'JANUARY', date: '13.01.26', leave: ['43'], od: [], ab: ['3', '4', '26', '32', '40', '44', '62', '304'] },
+  { id: '11', month: 'JANUARY', date: '19.01.26', leave: [], od: [], ab: ['43'] },
+  { id: '12', month: 'JANUARY', date: '21.01.26', leave: ['36'], od: [], ab: [] },
+  { id: '13', month: 'JANUARY', date: '22.01.26', leave: ['36'], od: [], ab: [] },
+  { id: '14', month: 'JANUARY', date: '23.01.26', leave: [], od: [], ab: [] }, // All present
+  { id: '15', month: 'JANUARY', date: '24.01.26', leave: [], od: [], ab: ['32', '302'] },
+  { id: '16', month: 'JANUARY', date: '27.01.26', leave: [], od: [], ab: ['302'] },
+  { id: '17', month: 'JANUARY', date: '28.01.26', leave: [], od: [], ab: ['25', '49'] },
+  { id: '18', month: 'JANUARY', date: '31.01.26', leave: ['29'], od: ['5'], ab: ['26'] },
 
   // FEBRUARY 2026
-  { id: '25', month: 'FEBRUARY', date: '02.02.26', leave: [], od: ['25'], ab: ['53', '10'] },
-  { id: '26', month: 'FEBRUARY', date: '03.02.26', leave: [], od: [], ab: ['53', '16'] },
-  { id: '27', month: 'FEBRUARY', date: '04.02.26', leave: [], od: [], ab: ['53', '302'] },
-  { id: '28', month: 'FEBRUARY', date: '05.02.26', leave: [], od: [], ab: ['302', '53'] },
-  { id: '29', month: 'FEBRUARY', date: '06.02.26', leave: [], od: [], ab: ['53', '36'] },
-  { id: '30', month: 'FEBRUARY', date: '07.02.26', leave: ['43', '306'], od: ['2'], ab: ['20', '53'] },
-  { id: '31', month: 'FEBRUARY', date: '09.02.26', leave: ['306'], od: ['18', '304'], ab: ['53', '35', '302'] },
-  { id: '32', month: 'FEBRUARY', date: '10.02.26', leave: ['306'], od: ['18', '304'], ab: ['23', '53', '56'] },
-  { id: '33', month: 'FEBRUARY', date: '11.02.26', leave: ['12'], od: [], ab: ['306', '53'] },
-  { id: '34', month: 'FEBRUARY', date: '12.02.26', leave: [], od: [], ab: ['35', '53'] },
-  { id: '35', month: 'FEBRUARY', date: '13.02.26', leave: [], od: [], ab: ['53'] },
-  { id: '36', month: 'FEBRUARY', date: '14.02.26', leave: [], od: [], ab: ['21', '53', '302', '304'] },
-  { id: '37', month: 'FEBRUARY', date: '15.02.26', leave: [], od: [], ab: ['40', '37', '4'] },
-  { id: '38', month: 'FEBRUARY', date: '17.02.26', leave: [], od: ['2'], ab: ['22'] },
-  { id: '39', month: 'FEBRUARY', date: '20.02.26', leave: [], od: ['301'], ab: ['6', '8', '36', '48', '302'] },
-  { id: '40', month: 'FEBRUARY', date: '21.02.26', leave: ['57'], od: ['10', '18', '20', '21', '23', '56', '301', '54'], ab: ['36', '307'] },
-  { id: '41', month: 'FEBRUARY', date: '23.02.26', leave: ['31', '4'], od: [], ab: ['307', '36', '57'] },
-  { id: '42', month: 'FEBRUARY', date: '24.02.26', leave: [], od: [], ab: ['32', '48'] },
-  { id: '43', month: 'FEBRUARY', date: '25.02.26', leave: [], od: [], ab: ['32'] },
-  { id: '44', month: 'FEBRUARY', date: '26.02.26', leave: [], od: ['46', '36', '41'], ab: [] },
-  { id: '45', month: 'FEBRUARY', date: '27.02.26', leave: ['38'], od: ['36', '41', '43', '46'], ab: ['23'] },
-  { id: '46', month: 'FEBRUARY', date: '28.02.26', leave: [], od: [], ab: ['42'] },
+  { id: '19', month: 'FEBRUARY', date: '02.02.26', leave: [], od: ['25'], ab: ['53'] },
+  { id: '20', month: 'FEBRUARY', date: '03.02.26', leave: [], od: [], ab: ['53'] },
+  { id: '21', month: 'FEBRUARY', date: '04.02.26', leave: [], od: [], ab: ['53', '302'] },
+  { id: '22', month: 'FEBRUARY', date: '05.02.26', leave: [], od: [], ab: ['302', '53'] },
+  { id: '23', month: 'FEBRUARY', date: '06.02.26', leave: [], od: [], ab: ['53'] },
+  { id: '24', month: 'FEBRUARY', date: '07.02.26', leave: ['43'], od: ['2'], ab: ['20', '53'] },
+  { id: '25', month: 'FEBRUARY', date: '09.02.26', leave: [], od: ['304'], ab: ['53', '302'] },
+  { id: '26', month: 'FEBRUARY', date: '10.02.26', leave: [], od: ['304'], ab: ['23', '53'] },
+  { id: '27', month: 'FEBRUARY', date: '11.02.26', leave: [], od: [], ab: ['53'] },
+  { id: '28', month: 'FEBRUARY', date: '12.02.26', leave: [], od: [], ab: ['53'] },
+  { id: '29', month: 'FEBRUARY', date: '13.02.26', leave: [], od: [], ab: ['53'] },
+  { id: '30', month: 'FEBRUARY', date: '14.02.26', leave: [], od: [], ab: ['21', '53', '302', '304'] },
+  { id: '31', month: 'FEBRUARY', date: '15.02.26', leave: [], od: [], ab: ['40', '37', '4'] },
+  { id: '32', month: 'FEBRUARY', date: '17.02.26', leave: [], od: ['2'], ab: [] },
+  { id: '33', month: 'FEBRUARY', date: '20.02.26', leave: [], od: ['301'], ab: ['302'] },
+  { id: '34', month: 'FEBRUARY', date: '21.02.26', leave: [], od: ['20', '21', '23', '301', '54'], ab: [] },
+  { id: '35', month: 'FEBRUARY', date: '23.02.26', leave: ['4'], od: [], ab: [] },
+  { id: '36', month: 'FEBRUARY', date: '24.02.26', leave: [], od: [], ab: ['32'] },
+  { id: '37', month: 'FEBRUARY', date: '25.02.26', leave: [], od: [], ab: ['32'] },
+  { id: '38', month: 'FEBRUARY', date: '27.02.26', leave: ['38'], od: ['36', '41', '43', '46'], ab: ['23'] },
 
   // MARCH 2026
-  { id: '47', month: 'MARCH', date: '04.03.26', leave: [], od: [], ab: ['4', '12', '57'] },
-  { id: '48', month: 'MARCH', date: '05.03.26', leave: [], od: [], ab: ['4', '12', '56'] },
-  { id: '49', month: 'MARCH', date: '06.03.26', leave: [], od: ['56'], ab: ['4'] },
-  { id: '50', month: 'MARCH', date: '11.03.26', leave: [], od: [], ab: ['11'] },
-  { id: '51', month: 'MARCH', date: '13.03.26', leave: [], od: [], ab: ['13'] },
-  { id: '52', month: 'MARCH', date: '14.03.26', leave: [], od: ['2', '59'], ab: ['44'] },
-  { id: '53', month: 'MARCH', date: '16.03.26', leave: ['6'], od: [], ab: [] },
-  { id: '54', month: 'MARCH', date: '17.03.26', leave: ['6'], od: [], ab: [] },
-  { id: '55', month: 'MARCH', date: '18.03.26', leave: ['6', '4'], od: [], ab: [] },
-  { id: '56', month: 'MARCH', date: '23.03.26', leave: ['6'], od: [], ab: ['11', '59'] },
-  { id: '57', month: 'MARCH', date: '24.03.26', leave: ['6', '4', '2', '50'], od: [], ab: ['59'] },
-  { id: '58', month: 'MARCH', date: '25.03.26', leave: ['6', '50'], od: ['304'], ab: [] },
-  { id: '59', month: 'MARCH', date: '26.03.26', leave: ['6'], od: ['304'], ab: [] },
-  { id: '60', month: 'MARCH', date: '27.03.26', leave: ['6'], od: ['304', '8', '25', '59'], ab: ['57'] },
+  { id: '39', month: 'MARCH', date: '04.03.26', leave: [], od: [], ab: ['4'] },
+  { id: '40', month: 'MARCH', date: '05.03.26', leave: [], od: [], ab: ['4'] },
+  { id: '41', month: 'MARCH', date: '06.03.26', leave: [], od: ['56'], ab: ['4'] },
+  { id: '42', month: 'MARCH', date: '13.03.26', leave: [], od: [], ab: ['13'] },
+  { id: '43', month: 'MARCH', date: '14.03.26', leave: [], od: ['2', '59'], ab: ['44'] },
+  { id: '44', month: 'MARCH', date: '18.03.26', leave: ['4'], od: [], ab: [] },
+  { id: '45', month: 'MARCH', date: '23.03.26', leave: [], od: [], ab: ['11', '59'] },
+  { id: '46', month: 'MARCH', date: '24.03.26', leave: ['4', '2'], od: [], ab: ['59'] },
+  { id: '47', month: 'MARCH', date: '25.03.26', leave: [], od: ['304'], ab: [] },
+  { id: '48', month: 'MARCH', date: '26.03.26', leave: [], od: ['304'], ab: [] },
+  { id: '49', month: 'MARCH', date: '27.03.26', leave: [], od: ['304', '25', '59'], ab: [] },
 
   // APRIL 2026
-  { id: '61', month: 'APRIL', date: '01.04.26', leave: [], od: [], ab: ['8', '36', '39', '304'] },
-  { id: '62', month: 'APRIL', date: '02.04.26', leave: ['36'], od: [], ab: ['39'] },
-  { id: '63', month: 'APRIL', date: '06.04.26', leave: [], od: [], ab: ['36'] },
-  { id: '64', month: 'APRIL', date: '07.04.26', leave: [], od: [], ab: ['36'] },
-  { id: '65', month: 'APRIL', date: '09.04.26', leave: [], od: [], ab: ['11'] },
+  { id: '50', month: 'APRIL', date: '01.04.26', leave: [], od: [], ab: ['304'] },
 ];
 
 const ADMIN_PASSKEY = "200678";
@@ -231,8 +220,11 @@ export default function App() {
     
     // Check if we need to seed
     const checkAndSeed = async () => {
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) {
+      // Use a special collection to track if we've already seeded
+      const seedRef = doc(db, "system_metadata", "seed_status");
+      const seedDoc = await getDocs(query(collection(db, "attendance_records"), limit(1)));
+      
+      if (seedDoc.empty) {
         console.log("Seeding database...");
         for (const record of INITIAL_ATTENDANCE_DATA) {
           await setDoc(doc(db, "attendance_records", record.id), record);
@@ -248,9 +240,9 @@ export default function App() {
       })) as RecordEntry[];
       
       if (fetchedRecords.length > 0) {
-        // Sort by ID naturally (padding with leading zeros if necessary, or just rely on id field)
         const sorted = [...fetchedRecords].sort((a, b) => parseInt(a.id) - parseInt(b.id));
         setRecords(sorted);
+        setLastGlobalSync(new Date());
       }
     });
 
@@ -300,19 +292,164 @@ export default function App() {
     }
   };
 
-  const handleUpdateRecord = async (id: string, field: 'leave' | 'od' | 'ab', value: string) => {
-    // Treat "0 (All Present)" as empty list
-    const cleanedValue = value.toLowerCase().includes('present') ? [] : value.split(',').map(s => s.trim()).filter(s => s !== '');
-    
-    const recordToUpdate = records.find(r => r.id === id);
-    if (!recordToUpdate) return;
+  const [isResetting, setIsResetting] = useState(false);
 
-    const updatedRecord = { ...recordToUpdate, [field]: cleanedValue };
+  const resetSystemData = async () => {
+    if (!window.confirm("Are you sure? This will wipe all current reports and reset to the original provided data list.")) return;
+    
+    setIsResetting(true);
+    try {
+      const snapshot = await getDocs(collection(db, "attendance_records"));
+      const batch = writeBatch(db);
+      
+      snapshot.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+      
+      // Seed with fresh data
+      INITIAL_ATTENDANCE_DATA.forEach((record) => {
+        const recordRef = doc(db, "attendance_records", record.id);
+        batch.set(recordRef, record);
+      });
+      
+      await batch.commit();
+      alert("System reset completed successfully!");
+    } catch (error) {
+      console.error("Reset failed:", error);
+      alert("Reset failed. Check console for details.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [lastGlobalSync, setLastGlobalSync] = useState<Date | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+  
+  // Local edits for admin table to support "Save All"
+  const [edits, setEdits] = useState<Record<string, {leave: string, od: string, ab: string}>>({});
+
+  // Sync edits with records when records load or admin logs in
+  useEffect(() => {
+    if (isAdminLoggedIn && records.length > 0) {
+      const initialEdits: Record<string, {leave: string, od: string, ab: string}> = {};
+      records.forEach(r => {
+        initialEdits[r.id] = {
+          leave: r.leave.join(', '),
+          od: r.od.join(', '),
+          ab: r.ab.join(', ')
+        };
+      });
+      setEdits(initialEdits);
+    }
+  }, [isAdminLoggedIn, records.length]);
+
+  const validateRollNumbers = (val: string) => {
+    if (val.trim() === '') return true;
+    // Strictly allow numbers separated by commas and spaces
+    const parts = val.split(',').map(s => s.trim()).filter(s => s !== '');
+    if (parts.length === 0) return true;
+    return parts.every(p => /^\d+$/.test(p));
+  };
+
+  const handleUpdateRecord = async (id: string, field: 'leave' | 'od' | 'ab', value: string) => {
+    if (!validateRollNumbers(value)) {
+      setValidationErrors(prev => ({ ...prev, [`${id}-${field}`]: true }));
+      return;
+    }
+    setValidationErrors(prev => ({ ...prev, [`${id}-${field}`]: false }));
+
+    // Update local edits state immediately
+    setEdits(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: value
+      }
+    }));
+
+    // Treat non-numeric or empty as empty list
+    const rawParts = value.split(',').map(s => s.trim()).filter(s => s !== '' && /^\d+$/.test(s));
+    const cleanedValue = Array.from(new Set(rawParts)); // Remove duplicates
+    
+    // Find current state
+    const currentRecord = records.find(r => r.id === id);
+    if (!currentRecord) return;
+
+    setSavingId(id);
     
     try {
-      await setDoc(doc(db, "attendance_records", id), updatedRecord);
+      await setDoc(doc(db, "attendance_records", id), {
+        ...currentRecord,
+        [field]: cleanedValue,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
     } catch (error) {
       console.error("Error updating record:", error);
+    } finally {
+      setTimeout(() => setSavingId(null), 1000);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    // Check for validation errors first
+    const hasErrors = Object.values(validationErrors).some(err => err);
+    if (hasErrors) {
+      alert("Please fix validation errors (highlighted in red) before saving.");
+      return;
+    }
+
+    if (!window.confirm("Save all changes to the database?")) return;
+
+    setBulkSaving(true);
+    const batch = writeBatch(db);
+    let changeCount = 0;
+
+    try {
+      for (const record of records) {
+        const edit = edits[record.id];
+        if (!edit) continue;
+
+        const cleanField = (val: string) => {
+          const raw = val.split(',').map(s => s.trim()).filter(s => s !== '' && /^\d+$/.test(s));
+          return Array.from(new Set(raw));
+        };
+
+        const newLeave = cleanField(edit.leave);
+        const newOd = cleanField(edit.od);
+        const newAb = cleanField(edit.ab);
+
+        // Only add to batch if changed
+        const hasChanged = 
+          JSON.stringify(newLeave) !== JSON.stringify(record.leave) ||
+          JSON.stringify(newOd) !== JSON.stringify(record.od) ||
+          JSON.stringify(newAb) !== JSON.stringify(record.ab);
+
+        if (hasChanged) {
+          const docRef = doc(db, "attendance_records", record.id);
+          batch.set(docRef, {
+            ...record,
+            leave: newLeave,
+            od: newOd,
+            ab: newAb,
+            updatedAt: new Date().toISOString()
+          });
+          changeCount++;
+        }
+      }
+
+      if (changeCount > 0) {
+        await batch.commit();
+        alert(`Successfully saved ${changeCount} records!`);
+      } else {
+        alert("No changes detected.");
+      }
+    } catch (error) {
+      console.error("Bulk save failed:", error);
+      alert("Failed to save changes. Check console for details.");
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -549,9 +686,35 @@ export default function App() {
                       <div className="flex items-center gap-2 mt-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                         <p className="text-slate-500 font-bold text-sm tracking-tight capitalize">Authenticated as System Administrator</p>
+                        {lastGlobalSync && (
+                          <span className="text-[10px] font-black text-slate-300 bg-slate-100 px-2 py-0.5 rounded-md uppercase ml-2 tracking-widest">
+                            Sync: {lastGlobalSync.toLocaleTimeString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      <AnimatePresence>
+                        {(savingId || bulkSaving) && (
+                          <motion.div 
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2 shadow-sm"
+                          >
+                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                            {bulkSaving ? 'Saving All...' : 'Syncing...'}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      <button 
+                        onClick={handleSaveAll}
+                        disabled={bulkSaving}
+                        className="bg-emerald-600 text-white px-6 py-2.5 rounded-2xl font-black flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 disabled:opacity-50"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save All
+                      </button>
                       <button 
                         onClick={() => setIsAdminLoggedIn(false)}
                         className="bg-white border-2 border-slate-100 text-slate-600 px-6 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm active:scale-95"
@@ -569,11 +732,21 @@ export default function App() {
                           <TableIcon className="w-5 h-5 text-indigo-500" />
                           Master Attendance Registry
                         </h3>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">Modify entries directly in the table cells</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">Edits save automatically on blur</p>
                       </div>
-                      <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
-                        <Info className="w-4 h-4 text-indigo-500 ml-2" />
-                        <p className="text-xs font-bold text-slate-500 pr-4">Separate Registration IDs with commas (e.g., \"57, 305\")</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+                          <Info className="w-4 h-4 text-indigo-500 ml-2" />
+                          <p className="text-xs font-bold text-slate-500 pr-4">Enter roll numbers separated by commas</p>
+                        </div>
+                        <button 
+                          onClick={resetSystemData}
+                          disabled={isResetting}
+                          className="bg-rose-50 text-rose-600 border border-rose-100 px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-rose-100 transition-all disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {isResetting ? 'Resetting...' : 'Reset Factory Data'}
+                        </button>
                       </div>
                     </div>
 
@@ -589,19 +762,56 @@ export default function App() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {records.map((row) => (
-                            <tr key={row.id} className="hover:bg-indigo-50/30 transition-colors group">
+                            <tr key={row.id} className="hover:bg-indigo-50/30 transition-colors group relative">
                               <td className="p-6">
-                                <p className="font-black text-slate-800 text-lg leading-none">{row.date}</p>
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-2 inline-block leading-none">{row.month}</span>
+                                <div className="flex items-center gap-2">
+                                  {savingId === row.id && (
+                                    <motion.div 
+                                      animate={{ rotate: 360 }}
+                                      transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                                      className="absolute left-1"
+                                    >
+                                      <Clock className="w-3 h-3 text-indigo-500" />
+                                    </motion.div>
+                                  )}
+                                  <div>
+                                    <p className="font-black text-slate-800 text-lg leading-none">{row.date}</p>
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">{row.month}</span>
+                                      {row.updatedAt && (
+                                        <div className="flex items-center gap-1 text-[10px] font-bold text-indigo-400/60 lowercase italic leading-none">
+                                          <div className="w-1 h-1 bg-indigo-300 rounded-full" />
+                                          {new Date(row.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               </td>
                               <td className="p-6">
                                 <div className="relative group/cell">
                                   <input 
                                     type="text"
-                                    defaultValue={row.leave.join(', ')}
+                                    value={edits[row.id]?.leave ?? row.leave.join(', ')}
                                     placeholder="None"
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEdits(prev => ({
+                                        ...prev,
+                                        [row.id]: { ...(prev[row.id] || { leave: '', od: '', ab: '' }), leave: val }
+                                      }));
+                                      if (!validateRollNumbers(val)) {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-leave`]: true }));
+                                      } else {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-leave`]: false }));
+                                      }
+                                    }}
                                     onBlur={(e) => handleUpdateRecord(row.id, 'leave', e.target.value)}
-                                    className="w-full bg-amber-50/30 border-2 border-transparent px-4 py-3 rounded-xl font-bold text-amber-700 focus:outline-none focus:bg-white focus:border-amber-400 transition-all group-hover:border-amber-100 shadow-inner group-hover:bg-amber-50/50"
+                                    className={`w-full bg-amber-50/30 border-2 px-4 py-3 rounded-xl font-bold text-amber-700 focus:outline-none focus:bg-white transition-all shadow-inner ${
+                                      validationErrors[`${row.id}-leave`] 
+                                        ? 'border-rose-500 bg-rose-50/50' 
+                                        : 'border-transparent focus:border-amber-400 group-hover:border-amber-100 group-hover:bg-amber-50/50'
+                                    }`}
                                   />
                                 </div>
                               </td>
@@ -609,10 +819,26 @@ export default function App() {
                                 <div className="relative group/cell">
                                   <input 
                                     type="text"
-                                    defaultValue={row.od.join(', ')}
+                                    value={edits[row.id]?.od ?? row.od.join(', ')}
                                     placeholder="None"
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEdits(prev => ({
+                                        ...prev,
+                                        [row.id]: { ...(prev[row.id] || { leave: '', od: '', ab: '' }), od: val }
+                                      }));
+                                      if (!validateRollNumbers(val)) {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-od`]: true }));
+                                      } else {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-od`]: false }));
+                                      }
+                                    }}
                                     onBlur={(e) => handleUpdateRecord(row.id, 'od', e.target.value)}
-                                    className="w-full bg-blue-50/30 border-2 border-transparent px-4 py-3 rounded-xl font-bold text-blue-700 focus:outline-none focus:bg-white focus:border-blue-400 transition-all group-hover:border-blue-100 shadow-inner group-hover:bg-blue-50/50"
+                                    className={`w-full bg-blue-50/30 border-2 px-4 py-3 rounded-xl font-bold text-blue-700 focus:outline-none focus:bg-white transition-all shadow-inner ${
+                                      validationErrors[`${row.id}-od`] 
+                                        ? 'border-rose-500 bg-rose-50/50' 
+                                        : 'border-transparent focus:border-blue-400 group-hover:border-blue-100 group-hover:bg-blue-50/50'
+                                    }`}
                                   />
                                 </div>
                               </td>
@@ -620,10 +846,26 @@ export default function App() {
                                 <div className="relative group/cell">
                                   <input 
                                     type="text"
-                                    defaultValue={row.ab.join(', ')}
+                                    value={edits[row.id]?.ab ?? row.ab.join(', ')}
                                     placeholder="None"
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEdits(prev => ({
+                                        ...prev,
+                                        [row.id]: { ...(prev[row.id] || { leave: '', od: '', ab: '' }), ab: val }
+                                      }));
+                                      if (!validateRollNumbers(val)) {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-ab`]: true }));
+                                      } else {
+                                        setValidationErrors(prev => ({ ...prev, [`${row.id}-ab`]: false }));
+                                      }
+                                    }}
                                     onBlur={(e) => handleUpdateRecord(row.id, 'ab', e.target.value)}
-                                    className="w-full bg-rose-50/30 border-2 border-transparent px-4 py-3 rounded-xl font-bold text-rose-700 focus:outline-none focus:bg-white focus:border-rose-400 transition-all group-hover:border-rose-100 shadow-inner group-hover:bg-rose-50/50"
+                                    className={`w-full bg-rose-50/30 border-2 px-4 py-3 rounded-xl font-bold text-rose-700 focus:outline-none focus:bg-white transition-all shadow-inner ${
+                                      validationErrors[`${row.id}-ab`] 
+                                        ? 'border-rose-500 bg-rose-50/50' 
+                                        : 'border-transparent focus:border-rose-400 group-hover:border-rose-100 group-hover:bg-rose-50/50'
+                                    }`}
                                   />
                                 </div>
                               </td>
